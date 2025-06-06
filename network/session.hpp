@@ -1,8 +1,12 @@
 #ifndef SESSION_HPP
 #define SESSION_HPP
 
+#include <memory>
+
 #include <websocketpp/common/connection_hdl.hpp>
 #include <../game/player.hpp>
+
+namespace game { class player; }
 
 namespace network {
 
@@ -16,12 +20,14 @@ public:
     connection_hdl hdl;
     bool received_ping, received_hello;
     uint16_t screen_width, screen_height;
-    player_ptr player;
+    std::shared_ptr<game::player> player;
 
     bool did_enter_game() {
         return player != nullptr;
     }
 };
+
+typedef std::weak_ptr<session> session_ptr;
 
 }
 
