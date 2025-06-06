@@ -336,7 +336,9 @@ public:
                         m_server.close(hdl, websocketpp::close::status::normal, "");
                         return;
                     } else {
+                        dispatch_left_room(s->player->id, s->player->room_id);
                         s->player->room_id = room_id;
+                        dispatch_entered_room(s->player->id, s->player->room_id);
                     }
                 } 
                 catch(std::out_of_range &e) {
@@ -523,6 +525,23 @@ private:
 
         send_dispatch(buffer, 1+1+2+1+1+1, room_id);
     }
+
+    void dispacth_entered_room(uint16_t id, std::string &room_id) {
+        uint8_t buffer[1+1+2];
+        buffer[0] = network::opcode::events;
+        buffer[1] = network::event::entered_room;
+        std::memcpy(&buffer[2], &id, 2);
+        send_dispatch(buffer, 1+1+2, room_id);
+    }
+
+    void dispacth_left_room(uint16_t id, std::string &room_id) {
+        uint8_t buffer[1+1+2];
+        buffer[0] = network::opcode::events;
+        buffer[1] = network::event::left_room;
+        std::memcpy(&buffer[2], &id, 2);
+        send_dispatch(buffer, 1+1+2, room_id);
+    }
+
 
     void send_dispatch(uint8_t* buffer, size_t size, std::string &room_id) {
         for (auto &pair: m_sessions) {
