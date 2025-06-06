@@ -8,6 +8,12 @@
 
 namepsace utils {
 
+uint16_t getUint16() {
+    std::srand(static_cast<unsigned>(std::time(nullptr)));
+    uint16_t value = static_cast<uint16_t>(std::rand() % 65536);
+    return value;
+}
+
 uint16_t getHue() {
     std::srand(static_cast<unsigned>(std::time(nullptr)));
     uint16_t value = static_cast<uint16_t>(std::rand() % 361);
