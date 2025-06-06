@@ -2,7 +2,6 @@
 #define NETWORK_HPP
 
 #include "opcodes.hpp"
-#include "session.hpp"
-#include "message_frame.hpp"
+#include "session.hpp
 
 #endif
