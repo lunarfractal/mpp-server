@@ -29,8 +29,9 @@ public:
     uint8_t deletion_reason;
 
     void updateCursor(uint16_t _x, uint16_t _y) {
-        x = (_x * 65535) / session->screen_width;
-        y = (_y * 65535) / session->screen_height;
+        auto s = session.lock();
+        x = (_x * 65535) / s->screen_width;
+        y = (_y * 65535) / s->screen_height;
     }
 
     bool should_have_in_view(std::shared_ptr<player> p) {
