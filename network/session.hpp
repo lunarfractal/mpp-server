@@ -25,6 +25,10 @@ public:
     bool did_enter_game() {
         return player != nullptr;
     }
+
+    bool did_send_hello() {
+        return received_hello && received_ping;
+    }
 };
 
 typedef std::weak_ptr<session> session_ptr;
