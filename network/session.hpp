@@ -2,7 +2,7 @@
 #define SESSION_HPP
 
 #include <websocketpp/common/connection_hdl.hpp>
-#include <../mpp/player.hpp>
+#include <../game/player.hpp>
 
 namespace network {
 
