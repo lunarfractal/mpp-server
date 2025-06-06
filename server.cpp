@@ -164,6 +164,12 @@ public:
 
                 p->id = game_world.add_player(p);
 
+                uint8_t data[3];
+                data[0] = network::opcode::entered_game;
+                std::memcpy(&data[1], &p->id, 2);
+
+                m_server.send(hdl, data, sizeof(data), websocketpp::frame::opcode::binary);
+
                 try {
                     int offset = 1;
                     
@@ -175,6 +181,8 @@ public:
                     p->room_id = utils::getString(buffer, offset);
 
                     if(p->room_id == "") p->room_id = "lobby";
+
+                    dispatch_entered_game(p->id, p->room_id);
                     
                 } catch(std::out_of_range &e) {
                     alog.write(websocketpp::log::alevel::app, "invalid enter game packet! closing the connection");
@@ -193,6 +201,7 @@ public:
 
                 s->player->deletion_reason = 0x03;
                 game_world.mark_for_deletion(s->player->id);
+                dispatch_left_game(p->id, p->room_id);
                 break;
             }
 
@@ -243,6 +252,7 @@ public:
                     try {
                         int offset = 1;
                         p->nick = utils::getString(buffer, offset);
+                        dispatch_nick(p->id, p->nick, p->room_id);
                     } catch(std::out_of_range &e) {
                         alog.write(websocketpp::log::alevel::app, "invalid nick packet! closing the connection");
                         m_server.close(hdl, websocketpp::close::status::normal, "");
@@ -267,6 +277,8 @@ public:
                     s->player->red = buffer[offset++];
                     s->player->green = buffer[offset++];
                     s->player->blue = buffer[offset++];
+
+                    dispatch_color(p->id, s->player->red, s->player->green, s->player->blue, s->room_id);
                 }
                 
                 break;
@@ -291,7 +303,8 @@ public:
                         return;
                     }
 
-                    // TODO dispatch
+
+                    dispatch_message(chat_message, s->player->id, s->player->nick, s->player->room_id);
 
                     game_world.add_message(s->player->room_id, {
                         chat_message,
@@ -452,6 +465,81 @@ private:
     } connection_hdl_equal;
 
     std::unordered_map<connection_hdl, std::shared_ptr<network::session>, connection_hdl_hash, connection_hdl_equal> m_sessions;
+
+    void dispatch_entered_game(uint16_t id, std::string &room_id) {
+        uint8_t buffer[4];
+        buffer[0] = network::opcode::events;
+        buffer[1] = network::event::entered_game;
+        std::memcpy(&buffer[2], &id, 2);
+        send_dispatch(buffer, 4, room_id);
+    }
+
+    void dispatch_left_game(uint16_t id, std::string &room_id) {
+        uint8_t buffer[4];
+        buffer[0] = network::opcode::events;
+        buffer[1] = network::event::left_game;
+        std::memcpy(&buffer[2], &id, 2);
+        send_dispatch(buffer, 4, room_id);
+    }
+
+    void dispatch_message(const std::u16string &value, uint16_t id, std::u16string &nick, std::string &room_id) {
+        const int size = 1 + 1 + 2 + 2 * nick.length() + 2 + 2 * value.length() + 2;
+        std::vector<uint8_t> buffer(size);
+        buffer[0] = network::opcode::events;
+        int offset = 1;
+        buffer[offset++] = network::event::sent_message;
+        std::memcpy(&buffer[offset], &id, 2);
+        offset += 2;
+        std::memcpy(&buffer[offset], nick.data(), 2 * nick.length());
+        offset += 2 * nick.length();
+        buffer[offset++] = 0x00;
+        buffer[offset++] = 0x00;
+        std::memcpy(&buffer[offset], value.data(), 2 * value.length());
+        offset += 2 * value.length();
+        buffer[offset++] = 0x00;
+        buffer[offset++] = 0x00;
+
+        send_dispatch(buffer.data(), buffer.size(), room_id);
+    }
+
+    void dispatch_nick(uint16_t id, std::string &nick, std::string &room_id) {
+        uint8_t buffer[1+1+2+nick.length()+1];
+        buffer[0] = network::opcode::events;
+        buffer[1] = network::event::updated_nick;
+        std::memcpy(&buffer[2], &id, 2);
+        std::memcpy(&buffer[4], nick.data(), nick.length());
+        buffer[4+nick.length()] = 0x00;
+        send_dispatch(buffer, 1+1+2+nick.length()+1, room_id);
+    }
+
+    void dispatch_color(uint16_t id, uint8_t red, uint8_t green, uint8_t blue, std::string &room_id) {
+        uint8_t buffer[1+1+2+1+1+1];
+        buffer[0] = network::opcode::events;
+        buffer[1] = network::event::updated_color;
+        std::memcpy(&buffer[2], &id, 2);
+        buffer[4] = red;
+        buffer[5] = green;
+        buffer[6] = blue;
+
+        send_dispatch(buffer, 1+1+2+1+1+1, room_id);
+    }
+
+    void send_dispatch(uint8_t* buffer, size_t size, std::string &room_id) {
+        for (auto &pair: m_sessions) {
+            try {
+                if (
+                    m_server.get_con_from_hdl(pair.first)->get_state() == websocketpp::session::state::open
+                    && pair.second->did_enter_game()
+                    && pair.second->player->room_id == room_id
+                ) {
+                    m_server.send(pair.first, buffer, size, websocketpp::frame::opcode::binary);
+                }
+            } catch (websocketpp::exception const & e) {
+                std::cout << "Send failed because: "
+                    << "(" << e.what() << ")" << std::endl;
+            }
+        }
+    }
 };
 
 
